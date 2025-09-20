@@ -320,11 +320,15 @@
         const tabPanelList = document.getElementById('tab-panel-list');
 
         // --- FIREBASE CONFIGURATION ---
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config) 
-            : { apiKey: "YOUR_API_KEY", authDomain: "YOUR_AUTH_DOMAIN", projectId: "YOUR_PROJECT_ID", storageBucket: "YOUR_STORAGE_BUCKET", messagingSenderId: "YOUR_SENDER_ID", appId: "YOUR_APP_ID" };
-        
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = {
+          apiKey: "AIzaSyCwtt4uMlfNF4wcjM82ZM7VJW9Z8JL_6mA",
+          authDomain: "team-action-tracker.firebaseapp.com",
+          projectId: "team-action-tracker",
+          storageBucket: "team-action-tracker.firebasestorage.app",
+          messagingSenderId: "733443606163",
+          appId: "1:733443606163:web:0128b626cebe722a6faf66"
+        };
+        const appId = 'team-action-tracker';
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
