@@ -75,12 +75,6 @@
         </div>
     </nav>
 
-    <!-- Firebase Config Warning -->
-    <div id="firebase-warning" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 max-w-7xl mx-auto my-4 rounded" role="alert">
-        <p class="font-bold">Configuration Needed</p>
-        <p>This app is not connected to Firebase. Please replace the placeholder API keys in the HTML file with your own Firebase project configuration to enable saving data.</p>
-    </div>
-
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div class="bg-white rounded-lg shadow">
@@ -263,18 +257,17 @@
         const closeTeamModalBtn = document.getElementById('close-team-modal-btn');
         const teamForm = document.getElementById('team-form');
         const teamListBody = document.getElementById('team-list-body');
-        const firebaseWarning = document.getElementById('firebase-warning');
 
         // --- FIREBASE CONFIGURATION ---
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config) 
-            : { apiKey: "YOUR_API_KEY", authDomain: "YOUR_AUTH_DOMAIN", projectId: "YOUR_PROJECT_ID", storageBucket: "YOUR_STORAGE_BUCKET", messagingSenderId: "YOUR_SENDER_ID", appId: "YOUR_APP_ID" };
-        
-        if (firebaseConfig.apiKey === "YOUR_API_KEY" && typeof __firebase_config === 'undefined') {
-            firebaseWarning.classList.remove('hidden');
-        }
-
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = {
+              apiKey: "AIzaSyCwtt4uM1fNF4wcjM82ZM7VJW9Z8JL_6mA",
+              authDomain: "team-action-tracker.firebaseapp.com",
+              projectId: "team-action-tracker",
+              storageBucket: "team-action-tracker.appspot.com",
+              messagingSenderId: "733443606163",
+              appId: "1:733443606163:web:0128b626cebe722a6faf66"
+            };
+        const appId = 'team-action-tracker';
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
@@ -512,18 +505,12 @@
             taskModal.classList.add('hidden');
         });
 
-        teamForm.addEventListener('submit', async (e) => {
+        teamForm.addEventListener('submit', e => {
             e.preventDefault();
             const name = e.target['member-name'].value.trim();
             const designation = e.target['member-designation'].value.trim();
-            if (name && designation) {
-                try {
-                    await addTeamMember(name, designation);
-                    e.target.reset();
-                } catch (error) {
-                    console.error("Failed to add team member:", error);
-                }
-            }
+            if(name && designation) addTeamMember(name, designation);
+e.target.reset();
         });
 
         // Filter Event Listeners
