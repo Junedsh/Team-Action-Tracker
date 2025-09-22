@@ -89,6 +89,13 @@
         }
         .fc-event-main {
             font-size: 0.8rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        #calendar.week-view-active .fc-event-main {
+            white-space: normal !important;
+            word-wrap: break-word;
         }
         /* Tippy Tooltip Styles */
         .tippy-box[data-theme~='light'] {
@@ -159,24 +166,28 @@
              <!-- Tabs -->
             <div class="border-b border-gray-200">
                 <nav class="-mb-px flex space-x-8 px-6" aria-label="Tabs">
-                    <button id="tab-dashboard" class="tab-btn active whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Visual Dashboard</button>
-                    <button id="tab-list" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">Task List</button>
+                    <button id="tab-list" class="tab-btn active whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Task List</button>
+                    <button id="tab-dashboard" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">Visual Dashboard</button>
                     <button id="tab-calendar" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">Calendar</button>
+                    <button id="tab-project-view" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">Project View</button>
                 </nav>
             </div>
             <!-- Tab Panels -->
-            <div id="tab-panel-dashboard" class="p-6">
+            <div id="tab-panel-list" class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="description">Task <span class="sort-icon"></span></th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="owner">Owner <span class="sort-icon"></span></th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="priority">Priority <span class="sort-icon"></span></th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="assignedDate">Assigned Date <span class="sort-icon"></span></th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="promiseDate">Promise Date <span class="sort-icon"></span></th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days Taken</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th></tr></thead><tbody id="task-table-body" class="bg-white divide-y divide-gray-200"></tbody></table>
+            </div>
+             <div id="tab-panel-dashboard" class="p-6 hidden">
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-semibold text-center mb-2">Tasks by Status</h3><canvas id="statusChart"></canvas></div>
                     <div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-semibold text-center mb-2">Tasks by Priority</h3><canvas id="priorityChart"></canvas></div>
                     <div class="lg:col-span-2 bg-gray-50 p-4 rounded-lg"><h3 class="font-semibold text-center mb-2">Tasks per Owner</h3><canvas id="ownerChart"></canvas></div>
                 </div>
             </div>
-            <div id="tab-panel-list" class="overflow-x-auto hidden">
-                <table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="description">Task <span class="sort-icon"></span></th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="owner">Owner <span class="sort-icon"></span></th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="priority">Priority <span class="sort-icon"></span></th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="assignedDate">Assigned Date <span class="sort-icon"></span></th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable" data-sort="promiseDate">Promise Date <span class="sort-icon"></span></th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days Taken</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th></tr></thead><tbody id="task-table-body" class="bg-white divide-y divide-gray-200"></tbody></table>
-            </div>
             <div id="tab-panel-calendar" class="p-6 hidden">
                 <div id="calendar"></div>
+            </div>
+            <div id="tab-panel-project-view" class="p-6 hidden">
+                <!-- Content will be rendered by JavaScript -->
             </div>
         </div>
     </main>
@@ -204,8 +215,8 @@
 
         // --- ELEMENT SELECTORS ---
         const taskTableBody = document.getElementById('task-table-body'), searchInput = document.getElementById('search-input'), filterOwner = document.getElementById('filter-owner'), filterStatus = document.getElementById('filter-status'), filterDateStart = document.getElementById('filter-date-start'), filterDateEnd = document.getElementById('filter-date-end'), summaryCardsContainer = document.getElementById('summary-cards'), openTaskModalBtn = document.getElementById('open-add-task-modal-btn'), closeTaskModalBtn = document.getElementById('close-task-modal-btn'), taskModal = document.getElementById('task-modal'), taskForm = document.getElementById('task-form'), modalTitle = document.getElementById('modal-title'), modalSubmitBtn = document.getElementById('modal-submit-btn'), ownerSelect = document.getElementById('task-owner'), ownerHelperText = document.getElementById('owner-helper-text'), manageTeamBtn = document.getElementById('manage-team-btn'), teamModal = document.getElementById('team-modal'), closeTeamModalBtn = document.getElementById('close-team-modal-btn'), teamForm = document.getElementById('team-form'), teamListBody = document.getElementById('team-list-body'), filterProject = document.getElementById('filter-project'), filterPriority = document.getElementById('filter-priority');
-        const tabDashboard = document.getElementById('tab-dashboard'), tabList = document.getElementById('tab-list'), tabCalendar = document.getElementById('tab-calendar');
-        const tabPanelDashboard = document.getElementById('tab-panel-dashboard'), tabPanelList = document.getElementById('tab-panel-list'), tabPanelCalendar = document.getElementById('tab-panel-calendar');
+        const tabList = document.getElementById('tab-list'), tabDashboard = document.getElementById('tab-dashboard'), tabCalendar = document.getElementById('tab-calendar'), tabProjectView = document.getElementById('tab-project-view');
+        const tabPanelList = document.getElementById('tab-panel-list'), tabPanelDashboard = document.getElementById('tab-panel-dashboard'), tabPanelCalendar = document.getElementById('tab-panel-calendar'), tabPanelProjectView = document.getElementById('tab-panel-project-view');
         const calendarEl = document.getElementById('calendar');
 
         // --- FIREBASE CONFIGURATION ---
@@ -283,27 +294,64 @@
         const populateProjectFilter = () => { const projects = [...new Set(tasks.map(task => task.project).filter(p => p))]; filterProject.innerHTML = '<option value="all">Filter by Project (All)</option>'; projects.sort().forEach(project => { filterProject.innerHTML += `<option value="${project}">${project}</option>`; }); };
         const populateOwnerDropdowns = () => { const currentOwnerFilterValue = filterOwner.value; filterOwner.innerHTML = '<option value="all">Filter by Owner (All)</option>'; ownerSelect.innerHTML = ''; teamMembers.sort((a,b) => a.name.localeCompare(b.name)).forEach(member => { filterOwner.innerHTML += `<option value="${member.name}">${member.name}</option>`; ownerSelect.innerHTML += `<option value="${member.name}">${member.name}</option>`; }); filterOwner.value = currentOwnerFilterValue; };
         
-        const renderTasks = () => { let filteredTasks = getFilteredTasks(); filteredTasks.sort((a, b) => { let valA=a[currentSort.key],valB=b[currentSort.key];if(currentSort.key==='promiseDate'||currentSort.key==='assignedDate'){valA=new Date(valA);valB=new Date(valB)}if(valA<valB)return currentSort.order==='asc'?-1:1;if(valA>valB)return currentSort.order==='asc'?1:-1;return 0}); taskTableBody.innerHTML = ''; if (filteredTasks.length === 0) { taskTableBody.innerHTML = `<tr><td colspan="8" class="text-center text-gray-500 py-4">No tasks match the current filters.</td></tr>`; return; } filteredTasks.forEach(task => { const { bg, text, label } = getStatusColors(task); const priorityColor = getPriorityColors(task.priority); const daysTaken = calculateDaysTaken(task); const row = document.createElement('tr'); row.className = 'hover:bg-gray-50 transition-colors'; const tooltipAttr = task.comments ? `data-tooltip-text="${task.comments.replace(/"/g, '&quot;')}"` : ''; row.innerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 relative" ${tooltipAttr}>${task.description}<div class="text-xs text-gray-500">${task.project || ''}</div></td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task.owner}</td><td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${priorityColor}">${task.priority || 'Medium'}</span></td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task.assignedDate}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task.promiseDate}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">${daysTaken}</td><td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${bg} ${text}">${label}</span></td><td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2 flex items-center"><button class="edit-btn text-indigo-600 hover:text-indigo-900" data-id="${task.id}">Edit</button><button class="delete-btn text-red-600 hover:text-red-900" data-id="${task.id}"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg></button></td>`; taskTableBody.appendChild(row); }); attachActionListeners(); updateSortIcons(); };
+        const renderTasks = () => { let filteredTasks = getFilteredTasks(); filteredTasks.sort((a, b) => { let valA=a[currentSort.key],valB=b[currentSort.key];if(currentSort.key==='promiseDate'||currentSort.key==='assignedDate'){valA=new Date(valA);valB=new Date(valB)}if(valA<valB)return currentSort.order==='asc'?-1:1;if(valA>valB)return currentSort.order==='asc'?1:-1;return 0}); taskTableBody.innerHTML = ''; if (filteredTasks.length === 0) { taskTableBody.innerHTML = `<tr><td colspan="8" class="text-center text-gray-500 py-4">No tasks match the current filters.</td></tr>`; return; } filteredTasks.forEach(task => { const { bg, text, label } = getStatusColors(task); const priorityColor = getPriorityColors(task.priority); const daysTaken = calculateDaysTaken(task); const row = document.createElement('tr'); row.className = 'hover:bg-gray-50 transition-colors'; const tooltipAttr = task.comments ? `data-tooltip-text="${task.comments.replace(/"/g, '&quot;')}"` : ''; row.innerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 relative" ${tooltipAttr}>${task.description}<div class="text-xs text-gray-500">${task.project || ''}</div></td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task.owner}</td><td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${priorityColor}">${task.priority || 'Medium'}</span></td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task.assignedDate}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task.promiseDate}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">${daysTaken}</td><td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${bg} ${text}">${label}</span></td><td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2 flex items-center"><button class="edit-btn text-indigo-600 hover:text-indigo-900" data-id="${task.id}">Edit</button><button class="delete-btn text-red-600 hover:text-red-900" data-id="${task.id}"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h--3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg></button></td>`; taskTableBody.appendChild(row); }); attachActionListeners(); updateSortIcons(); };
         const renderTeamMembers = () => { teamListBody.innerHTML = ''; teamMembers.sort((a,b) => a.name.localeCompare(b.name)).forEach(member => { teamListBody.innerHTML += `<tr><td class="px-4 py-2 text-sm text-gray-800">${member.name}</td><td class="px-4 py-2 text-sm text-gray-500">${member.designation}</td><td class="px-4 py-2"><button class="delete-member-btn text-red-600 hover:text-red-900 text-sm" data-id="${member.id}">Delete</button></td></tr>`; }); document.querySelectorAll('.delete-member-btn').forEach(b => b.onclick = e => deleteTeamMember(e.currentTarget.dataset.id)); };
         const renderCharts = () => { const filteredTasks = getFilteredTasks(); const totalTasks = filteredTasks.length; const statusCounts = { Pending: 0, 'In Progress': 0, Done: 0, Overdue: 0 }; filteredTasks.forEach(task => { if(isOverdue(task)) statusCounts.Overdue++; else statusCounts[task.status]++; }); if(statusChart) statusChart.destroy(); statusChart = new Chart(document.getElementById('statusChart'), { type: 'pie', data: { labels: Object.keys(statusCounts), datasets: [{ data: Object.values(statusCounts), backgroundColor: ['#FBBF24', '#3B82F6', '#10B981', '#EF4444'] }] }, options: { plugins: { datalabels: { formatter: (value, ctx) => { if (value === 0) return ''; let percentage = totalTasks > 0 ? (value / totalTasks * 100).toFixed(1) + '%' : '0.0%'; return `${value} (${percentage})`; }, color: '#fff', font: { weight: 'bold' } } } } }); const priorityCounts = { Low: 0, Medium: 0, High: 0, Urgent: 0 }; filteredTasks.forEach(task => priorityCounts[task.priority || 'Medium']++); if(priorityChart) priorityChart.destroy(); priorityChart = new Chart(document.getElementById('priorityChart'), { type: 'pie', data: { labels: Object.keys(priorityCounts), datasets: [{ data: Object.values(priorityCounts), backgroundColor: ['#6B7280', '#3B82F6', '#F97316', '#EF4444'] }] }, options: { plugins: { datalabels: { formatter: (value, ctx) => { if (value === 0) return ''; let percentage = totalTasks > 0 ? (value / totalTasks * 100).toFixed(1) + '%' : '0.0%'; return `${value} (${percentage})`; }, color: '#fff', font: { weight: 'bold' } } } } }); const ownerCounts = {}; filteredTasks.forEach(task => { ownerCounts[task.owner] = (ownerCounts[task.owner] || 0) + 1; }); if(ownerChart) ownerChart.destroy(); ownerChart = new Chart(document.getElementById('ownerChart'), { type: 'bar', data: { labels: Object.keys(ownerCounts), datasets: [{ label: 'Tasks', data: Object.values(ownerCounts), backgroundColor: '#3B82F6' }] }, options: { scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'top', font: { weight: 'bold' } } } } }); };
-        const renderCalendar = () => {
-            const filteredTasks = getFilteredTasks();
-            const events = filteredTasks.map(task => ({
-                id: task.id,
-                title: `${task.owner}: ${task.description}`,
-                start: task.promiseDate,
-                allDay: true,
-                color: getStatusColors(task).calendarColor,
-                extendedProps: { task: task } 
-            }));
-            if (calendar) {
-                calendar.removeAllEvents();
-                calendar.addEventSource(events);
+        const renderCalendar = () => { const filteredTasks = getFilteredTasks(); const events = filteredTasks.map(task => ({ id: task.id, title: `${task.owner}: ${task.description}`, start: task.promiseDate, allDay: true, color: getStatusColors(task).calendarColor, extendedProps: { task: task } })); if (calendar) { calendar.removeAllEvents(); calendar.addEventSource(events); } };
+        const renderProjectView = () => {
+            const container = document.getElementById('tab-panel-project-view');
+            let filteredTasks = getFilteredTasks();
+            
+            if (filteredTasks.length === 0) {
+                container.innerHTML = `<p class="text-center text-gray-500 py-8">No tasks to display based on current filters.</p>`;
+                return;
             }
+
+            // Group tasks by project, then by assigned date
+            const tasksByProject = filteredTasks.reduce((acc, task) => {
+                const project = task.project || 'Uncategorized';
+                const date = task.assignedDate;
+                if (!acc[project]) acc[project] = {};
+                if (!acc[project][date]) acc[project][date] = [];
+                acc[project][date].push(task);
+                return acc;
+            }, {});
+
+            let html = '<div class="space-y-8">';
+            // Sort projects alphabetically
+            const sortedProjects = Object.keys(tasksByProject).sort();
+
+            for (const project of sortedProjects) {
+                html += `<div class="bg-gray-50 rounded-lg p-4 sm:p-6"><h3 class="text-lg font-bold text-indigo-700 mb-4 border-b border-gray-200 pb-2">${project}</h3><div class="space-y-4">`;
+                
+                const tasksByDate = tasksByProject[project];
+                // Sort dates chronologically
+                const sortedDates = Object.keys(tasksByDate).sort();
+
+                for (const date of sortedDates) {
+                     html += `<div class="pl-2"><h4 class="font-semibold text-gray-700 mb-2">${new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h4>`;
+                     html += '<ul class="divide-y divide-gray-200 bg-white rounded-md shadow-sm">';
+                     tasksByDate[date].forEach(task => {
+                        const { bg, text, label } = getStatusColors(task);
+                        html += `
+                            <li class="px-4 py-3 flex items-center justify-between hover:bg-gray-50">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-800">${task.description}</p>
+                                    <p class="text-xs text-gray-500 mt-1">Owner: <span class="font-medium">${task.owner}</span> &bull; Due: <span class="font-medium">${task.promiseDate}</span></p>
+                                </div>
+                                <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${bg} ${text}">${label}</span>
+                            </li>`;
+                     });
+                     html += '</ul></div>';
+                }
+                html += `</div></div>`;
+            }
+            html += '</div>';
+            container.innerHTML = html;
         };
 
         // --- CORE LOGIC & MODAL FUNCTIONS ---
-        const rerenderAll = () => { populateOwnerDropdowns(); populateProjectFilter(); renderSummaryCards(); renderTasks(); renderTeamMembers(); renderCharts(); renderCalendar(); };
+        const rerenderAll = () => { populateOwnerDropdowns(); populateProjectFilter(); renderSummaryCards(); renderTasks(); renderTeamMembers(); renderCharts(); renderCalendar(); renderProjectView(); };
         const attachActionListeners = () => { document.querySelectorAll('.delete-btn').forEach(b => b.onclick = e => deleteTask(e.currentTarget.dataset.id)); document.querySelectorAll('.edit-btn').forEach(b => b.onclick = e => openEditModal(e.currentTarget.dataset.id)); };
         const deleteTask = (id) => deleteDoc(doc(tasksCollection, id));
         const addTeamMember = (name, designation) => addDoc(teamCollection, { name, designation });
@@ -327,17 +375,19 @@
 
         // Tab Event Listeners
         const switchTab = (activeTab) => {
-            const tabs = { dashboard: tabDashboard, list: tabList, calendar: tabCalendar };
-            const panels = { dashboard: tabPanelDashboard, list: tabPanelList, calendar: tabPanelCalendar };
+            const tabs = { list: tabList, dashboard: tabDashboard, calendar: tabCalendar, projectView: tabProjectView };
+            const panels = { list: tabPanelList, dashboard: tabPanelDashboard, calendar: tabPanelCalendar, projectView: tabPanelProjectView };
             Object.keys(tabs).forEach(key => {
-                tabs[key].classList.toggle('active', key === activeTab);
-                panels[key].classList.toggle('hidden', key !== activeTab);
+                const isActive = key === activeTab;
+                tabs[key].classList.toggle('active', isActive);
+                panels[key].classList.toggle('hidden', !isActive);
             });
             if (activeTab === 'calendar' && calendar) calendar.render(); // Re-render calendar when tab is shown
         };
-        tabDashboard.addEventListener('click', () => switchTab('dashboard'));
         tabList.addEventListener('click', () => switchTab('list'));
+        tabDashboard.addEventListener('click', () => switchTab('dashboard'));
         tabCalendar.addEventListener('click', () => switchTab('calendar'));
+        tabProjectView.addEventListener('click', () => switchTab('projectView'));
 
         // Modal listeners
         openTaskModalBtn.addEventListener('click', openAddTaskModal);
@@ -353,6 +403,18 @@
                 initialView: 'dayGridMonth',
                 headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,dayGridWeek,listWeek' },
                 events: [],
+                height: 'auto',
+                views: {
+                  dayGridMonth: { dayMaxEvents: true },
+                  dayGridWeek: { dayMaxEvents: false }
+                },
+                viewDidMount: function(info) {
+                    if (info.view.type === 'dayGridWeek') {
+                        calendarEl.classList.add('week-view-active');
+                    } else {
+                        calendarEl.classList.remove('week-view-active');
+                    }
+                },
                 eventClick: function(info) {
                     const taskId = info.event.extendedProps.task.id;
                     openEditModal(taskId);
@@ -360,20 +422,10 @@
                 eventDidMount: function(info) {
                     const task = info.event.extendedProps.task;
                     if (!task) return;
-
                     const promiseDiff = calculatePromiseDifference(task);
-
                     tippy(info.el, {
-                        content: `
-                            <div class="text-left p-1">
-                                <p class="font-bold mb-1">${info.event.title}</p>
-                                <p class="text-xs"><span class="font-semibold">Assigned:</span> ${task.assignedDate}</p>
-                                <p class="text-xs"><span class="font-semibold">Promise:</span> ${task.promiseDate}</p>
-                                <p class="text-xs"><span class="font-semibold">Duration:</span> ${promiseDiff}</p>
-                            </div>
-                        `,
-                        allowHTML: true,
-                        theme: 'light',
+                        content: `<div class="text-left p-1"><p class="font-bold mb-1">${info.event.title}</p><p class="text-xs"><span class="font-semibold">Assigned:</span> ${task.assignedDate}</p><p class="text-xs"><span class="font-semibold">Promise:</span> ${task.promiseDate}</p><p class="text-xs"><span class="font-semibold">Duration:</span> ${promiseDiff}</p></div>`,
+                        allowHTML: true, theme: 'light',
                     });
                 }
             });
@@ -382,6 +434,7 @@
 
         initializeFirebase();
         initializeCalendar();
+        switchTab('list'); // Set initial tab
 
     </script>
 </body>
