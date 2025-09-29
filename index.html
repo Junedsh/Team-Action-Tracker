@@ -231,212 +231,266 @@
         const appId = 'team-action-tracker';
 
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
 
-        // --- COLLECTION REFERENCES ---
-        let tasksCollection, teamCollection;
+    // --- COLLECTION REFERENCES ---
+    let tasksCollection, teamCollection;
 
-        // --- DATA STORE & CHART/CALENDAR INSTANCES ---
-        let teamMembers = [], tasks = [];
-        let statusChart, priorityChart, ownerChart, calendar;
-        Chart.register(ChartDataLabels);
+    // --- DATA STORE & CHART/CALENDAR INSTANCES ---
+    let teamMembers = [], tasks = [];
+    let statusChart, priorityChart, ownerChart, calendar;
+    Chart.register(ChartDataLabels);
 
-        // --- STATE MANAGEMENT ---
-        let currentFilters = { search: '', owner: 'all', status: 'all', dateStart: null, dateEnd: null, project: 'all', priority: 'all' };
-        let currentSort = { key: 'promiseDate', order: 'asc' };
-        
-        const initializeFirebase = async () => { try { if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) { await signInWithCustomToken(auth, __initial_auth_token); } else { await signInAnonymously(auth); } } catch (error) { console.error("Authentication failed:", error); } };
+    // --- STATE MANAGEMENT ---
+    let currentFilters = { search: '', owner: 'all', status: 'all', dateStart: null, dateEnd: null, project: 'all', priority: 'all' };
+    let currentSort = { key: 'promiseDate', order: 'asc' };
+    
+    const initializeFirebase = async () => { try { if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) { await signInWithCustomToken(auth, __initial_auth_token); } else { await signInAnonymously(auth); } } catch (error) { console.error("Authentication failed:", error); } };
 
-        onAuthStateChanged(auth, user => {
-            if (user) {
-                console.log("User is authenticated:", user.uid);
-                tasksCollection = collection(db, `/artifacts/${appId}/public/data/tasks`);
-                teamCollection = collection(db, `/artifacts/${appId}/public/data/teamMembers`);
-                
-                onSnapshot(teamCollection, (snapshot) => { teamMembers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); rerenderAll(); }, (error) => console.error("Team snapshot error:", error));
-                onSnapshot(tasksCollection, (snapshot) => { tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); rerenderAll(); }, (error) => console.error("Tasks snapshot error:", error));
-            } else { console.log("User is not authenticated."); }
-        });
-
-        // --- HELPER & RENDER FUNCTIONS ---
-        const isOverdue = (task) => !task.status.includes('Done') && new Date(task.promiseDate + 'T00:00:00') < new Date(new Date().setHours(0,0,0,0));
-        const getStatusColors = (task) => { if (isOverdue(task)) return { bg: 'bg-red-100', text: 'text-red-800', label: 'Overdue', calendarColor: '#EF4444' }; switch (task.status) { case 'Pending': return { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending', calendarColor: '#FBBF24' }; case 'In Progress': return { bg: 'bg-blue-100', text: 'text-blue-800', label: 'In Progress', calendarColor: '#3B82F6' }; case 'Done': return { bg: 'bg-green-100', text: 'text-green-800', label: 'Done', calendarColor: '#10B981' }; default: return { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Unknown', calendarColor: '#6B7280' }; } };
-        const getPriorityColors = (priority) => { switch (priority) { case 'Urgent': return 'bg-red-500 text-white'; case 'High': return 'bg-orange-500 text-white'; case 'Medium': return 'bg-blue-500 text-white'; case 'Low': return 'bg-gray-500 text-white'; default: return 'bg-gray-400 text-white'; } };
-        const calculateDaysTaken = (task) => { if (task.status !== 'Done' || !task.completedDate) return '—'; const assigned = new Date(task.assignedDate + 'T00:00:00'); const completed = new Date(task.completedDate + 'T00:00:00'); if (isNaN(assigned) || isNaN(completed)) return '—'; const diffTime = Math.abs(completed - assigned); const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); return diffDays === 0 ? 'Today' : `${diffDays}d`; };
-        const calculatePromiseDifference = (task) => {
-            if (!task.assignedDate || !task.promiseDate) return 'N/A';
-            const assigned = new Date(task.assignedDate);
-            const promise = new Date(task.promiseDate);
-            if (isNaN(assigned.getTime()) || isNaN(promise.getTime())) return 'N/A';
-            const diffTime = promise.getTime() - assigned.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-            return `${diffDays} day(s)`;
-        };
-        const updateSortIcons = () => { document.querySelectorAll('.sortable .sort-icon').forEach(i=>i.textContent='');const activeIcon=document.querySelector(`.sortable[data-sort="${currentSort.key}"] .sort-icon`);if(activeIcon)activeIcon.textContent=currentSort.order==='asc'?' ▲':' ▼'};
-
-        const getFilteredTasks = () => {
-            return tasks.filter(task => {
-                const searchMatch = task.description.toLowerCase().includes(currentFilters.search.toLowerCase()) || (task.project && task.project.toLowerCase().includes(currentFilters.search.toLowerCase())) || task.owner.toLowerCase().includes(currentFilters.search.toLowerCase());
-                const ownerMatch = currentFilters.owner === 'all' || task.owner === currentFilters.owner;
-                const statusMatch = currentFilters.status === 'all' || (currentFilters.status === 'Overdue' ? isOverdue(task) : (task.status === currentFilters.status && !isOverdue(task)));
-                const projectMatch = currentFilters.project === 'all' || task.project === currentFilters.project;
-                const priorityMatch = currentFilters.priority === 'all' || task.priority === currentFilters.priority;
-                const taskDate = new Date(task.assignedDate + 'T00:00:00');
-                const startDate = currentFilters.dateStart ? new Date(currentFilters.dateStart + 'T00:00:00') : null;
-                const endDate = currentFilters.dateEnd ? new Date(currentFilters.dateEnd + 'T00:00:00') : null;
-                const dateMatch = (!startDate || taskDate >= startDate) && (!endDate || taskDate <= endDate);
-                return searchMatch && ownerMatch && statusMatch && dateMatch && projectMatch && priorityMatch;
-            });
-        };
-
-        const renderSummaryCards = () => { const relevantTasks = getFilteredTasks(); const totalTasks = relevantTasks.length; const pendingTasks = relevantTasks.filter(t => t.status === 'Pending' && !isOverdue(t)).length; const inProgressTasks = relevantTasks.filter(t => t.status === 'In Progress' && !isOverdue(t)).length; const overdueTasks = relevantTasks.filter(isOverdue).length; summaryCardsContainer.innerHTML = `<div class="bg-gray-100 p-4 rounded-lg text-center"><p class="text-2xl font-bold text-gray-800">${totalTasks}</p><p class="text-sm text-gray-500">Total Tasks</p></div><div class="bg-yellow-100 p-4 rounded-lg text-center"><p class="text-2xl font-bold text-yellow-800">${pendingTasks}</p><p class="text-sm text-yellow-600">Pending</p></div><div class="bg-blue-100 p-4 rounded-lg text-center"><p class="text-2xl font-bold text-blue-800">${inProgressTasks}</p><p class="text-sm text-blue-600">In Progress</p></div><div class="bg-red-100 p-4 rounded-lg text-center"><p class="text-2xl font-bold text-red-800">${overdueTasks}</p><p class="text-sm text-red-600">Overdue</p></div>`; };
-        const populateProjectFilter = () => { const projects = [...new Set(tasks.map(task => task.project).filter(p => p))]; filterProject.innerHTML = '<option value="all">Filter by Project (All)</option>'; projects.sort().forEach(project => { filterProject.innerHTML += `<option value="${project}">${project}</option>`; }); };
-        const populateOwnerDropdowns = () => { const currentOwnerFilterValue = filterOwner.value; filterOwner.innerHTML = '<option value="all">Filter by Owner (All)</option>'; ownerSelect.innerHTML = ''; teamMembers.sort((a,b) => a.name.localeCompare(b.name)).forEach(member => { filterOwner.innerHTML += `<option value="${member.name}">${member.name}</option>`; ownerSelect.innerHTML += `<option value="${member.name}">${member.name}</option>`; }); filterOwner.value = currentOwnerFilterValue; };
-        
-        const renderTasks = () => { let filteredTasks = getFilteredTasks(); filteredTasks.sort((a, b) => { let valA=a[currentSort.key],valB=b[currentSort.key];if(currentSort.key==='promiseDate'||currentSort.key==='assignedDate'){valA=new Date(valA);valB=new Date(valB)}if(valA<valB)return currentSort.order==='asc'?-1:1;if(valA>valB)return currentSort.order==='asc'?1:-1;return 0}); taskTableBody.innerHTML = ''; if (filteredTasks.length === 0) { taskTableBody.innerHTML = `<tr><td colspan="8" class="text-center text-gray-500 py-4">No tasks match the current filters.</td></tr>`; return; } filteredTasks.forEach(task => { const { bg, text, label } = getStatusColors(task); const priorityColor = getPriorityColors(task.priority); const daysTaken = calculateDaysTaken(task); const row = document.createElement('tr'); row.className = 'hover:bg-gray-50 transition-colors'; const tooltipAttr = task.comments ? `data-tooltip-text="${task.comments.replace(/"/g, '&quot;')}"` : ''; row.innerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 relative" ${tooltipAttr}>${task.description}<div class="text-xs text-gray-500">${task.project || ''}</div></td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task.owner}</td><td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${priorityColor}">${task.priority || 'Medium'}</span></td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task.assignedDate}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task.promiseDate}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">${daysTaken}</td><td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${bg} ${text}">${label}</span></td><td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2 flex items-center"><button class="edit-btn text-indigo-600 hover:text-indigo-900" data-id="${task.id}">Edit</button><button class="delete-btn text-red-600 hover:text-red-900" data-id="${task.id}"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h--3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg></button></td>`; taskTableBody.appendChild(row); }); attachActionListeners(); updateSortIcons(); };
-        const renderTeamMembers = () => { teamListBody.innerHTML = ''; teamMembers.sort((a,b) => a.name.localeCompare(b.name)).forEach(member => { teamListBody.innerHTML += `<tr><td class="px-4 py-2 text-sm text-gray-800">${member.name}</td><td class="px-4 py-2 text-sm text-gray-500">${member.designation}</td><td class="px-4 py-2"><button class="delete-member-btn text-red-600 hover:text-red-900 text-sm" data-id="${member.id}">Delete</button></td></tr>`; }); document.querySelectorAll('.delete-member-btn').forEach(b => b.onclick = e => deleteTeamMember(e.currentTarget.dataset.id)); };
-        const renderCharts = () => { const filteredTasks = getFilteredTasks(); const totalTasks = filteredTasks.length; const statusCounts = { Pending: 0, 'In Progress': 0, Done: 0, Overdue: 0 }; filteredTasks.forEach(task => { if(isOverdue(task)) statusCounts.Overdue++; else statusCounts[task.status]++; }); if(statusChart) statusChart.destroy(); statusChart = new Chart(document.getElementById('statusChart'), { type: 'pie', data: { labels: Object.keys(statusCounts), datasets: [{ data: Object.values(statusCounts), backgroundColor: ['#FBBF24', '#3B82F6', '#10B981', '#EF4444'] }] }, options: { plugins: { datalabels: { formatter: (value, ctx) => { if (value === 0) return ''; let percentage = totalTasks > 0 ? (value / totalTasks * 100).toFixed(1) + '%' : '0.0%'; return `${value} (${percentage})`; }, color: '#fff', font: { weight: 'bold' } } } } }); const priorityCounts = { Low: 0, Medium: 0, High: 0, Urgent: 0 }; filteredTasks.forEach(task => priorityCounts[task.priority || 'Medium']++); if(priorityChart) priorityChart.destroy(); priorityChart = new Chart(document.getElementById('priorityChart'), { type: 'pie', data: { labels: Object.keys(priorityCounts), datasets: [{ data: Object.values(priorityCounts), backgroundColor: ['#6B7280', '#3B82F6', '#F97316', '#EF4444'] }] }, options: { plugins: { datalabels: { formatter: (value, ctx) => { if (value === 0) return ''; let percentage = totalTasks > 0 ? (value / totalTasks * 100).toFixed(1) + '%' : '0.0%'; return `${value} (${percentage})`; }, color: '#fff', font: { weight: 'bold' } } } } }); const ownerCounts = {}; filteredTasks.forEach(task => { ownerCounts[task.owner] = (ownerCounts[task.owner] || 0) + 1; }); if(ownerChart) ownerChart.destroy(); ownerChart = new Chart(document.getElementById('ownerChart'), { type: 'bar', data: { labels: Object.keys(ownerCounts), datasets: [{ label: 'Tasks', data: Object.values(ownerCounts), backgroundColor: '#3B82F6' }] }, options: { scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'top', font: { weight: 'bold' } } } } }); };
-        const renderCalendar = () => { const filteredTasks = getFilteredTasks(); const events = filteredTasks.map(task => ({ id: task.id, title: `${task.owner}: ${task.description}`, start: task.promiseDate, allDay: true, color: getStatusColors(task).calendarColor, extendedProps: { task: task } })); if (calendar) { calendar.removeAllEvents(); calendar.addEventSource(events); } };
-        const renderProjectView = () => {
-            const container = document.getElementById('tab-panel-project-view');
-            let filteredTasks = getFilteredTasks();
+    onAuthStateChanged(auth, user => {
+        if (user) {
+            console.log("User is authenticated:", user.uid);
+            tasksCollection = collection(db, `/artifacts/${appId}/public/data/tasks`);
+            teamCollection = collection(db, `/artifacts/${appId}/public/data/teamMembers`);
             
-            if (filteredTasks.length === 0) {
-                container.innerHTML = `<p class="text-center text-gray-500 py-8">No tasks to display based on current filters.</p>`;
-                return;
-            }
+            onSnapshot(teamCollection, (snapshot) => { teamMembers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); rerenderAll(); }, (error) => console.error("Team snapshot error:", error));
+            onSnapshot(tasksCollection, (snapshot) => { tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); rerenderAll(); }, (error) => console.error("Tasks snapshot error:", error));
+        } else { console.log("User is not authenticated."); }
+    });
 
-            // Group tasks by project, then by assigned date
-            const tasksByProject = filteredTasks.reduce((acc, task) => {
-                const project = task.project || 'Uncategorized';
-                const date = task.assignedDate;
-                if (!acc[project]) acc[project] = {};
-                if (!acc[project][date]) acc[project][date] = [];
-                acc[project][date].push(task);
-                return acc;
-            }, {});
+    // --- HELPER & RENDER FUNCTIONS ---
+    const formatDate = (date) => { // New helper function to format dates
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+    const isOverdue = (task) => !task.status.includes('Done') && new Date(task.promiseDate + 'T00:00:00') < new Date(new Date().setHours(0,0,0,0));
+    const getStatusColors = (task) => { if (isOverdue(task)) return { bg: 'bg-red-100', text: 'text-red-800', label: 'Overdue', calendarColor: '#EF4444' }; switch (task.status) { case 'Pending': return { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending', calendarColor: '#FBBF24' }; case 'In Progress': return { bg: 'bg-blue-100', text: 'text-blue-800', label: 'In Progress', calendarColor: '#3B82F6' }; case 'Done': return { bg: 'bg-green-100', text: 'text-green-800', label: 'Done', calendarColor: '#10B981' }; default: return { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Unknown', calendarColor: '#6B7280' }; } };
+    const getPriorityColors = (priority) => { switch (priority) { case 'Urgent': return 'bg-red-500 text-white'; case 'High': return 'bg-orange-500 text-white'; case 'Medium': return 'bg-blue-500 text-white'; case 'Low': return 'bg-gray-500 text-white'; default: return 'bg-gray-400 text-white'; } };
+    const calculateDaysTaken = (task) => { if (task.status !== 'Done' || !task.completedDate) return '—'; const assigned = new Date(task.assignedDate + 'T00:00:00'); const completed = new Date(task.completedDate + 'T00:00:00'); if (isNaN(assigned) || isNaN(completed)) return '—'; const diffTime = Math.abs(completed - assigned); const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); return diffDays === 0 ? 'Today' : `${diffDays}d`; };
+    const calculatePromiseDifference = (task) => {
+        if (!task.assignedDate || !task.promiseDate) return 'N/A';
+        const assigned = new Date(task.assignedDate);
+        const promise = new Date(task.promiseDate);
+        if (isNaN(assigned.getTime()) || isNaN(promise.getTime())) return 'N/A';
+        const diffTime = promise.getTime() - assigned.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        return `${diffDays} day(s)`;
+    };
+    const updateSortIcons = () => { document.querySelectorAll('.sortable .sort-icon').forEach(i=>i.textContent='');const activeIcon=document.querySelector(`.sortable[data-sort="${currentSort.key}"] .sort-icon`);if(activeIcon)activeIcon.textContent=currentSort.order==='asc'?' ▲':' ▼'};
 
-            let html = '<div class="space-y-8">';
-            // Sort projects alphabetically
-            const sortedProjects = Object.keys(tasksByProject).sort();
+    const getFilteredTasks = () => {
+        return tasks.filter(task => {
+            const searchMatch = task.description.toLowerCase().includes(currentFilters.search.toLowerCase()) || (task.project && task.project.toLowerCase().includes(currentFilters.search.toLowerCase())) || task.owner.toLowerCase().includes(currentFilters.search.toLowerCase());
+            const ownerMatch = currentFilters.owner === 'all' || task.owner === currentFilters.owner;
+            const statusMatch = currentFilters.status === 'all' || (currentFilters.status === 'Overdue' ? isOverdue(task) : (task.status === currentFilters.status && !isOverdue(task)));
+            const projectMatch = currentFilters.project === 'all' || task.project === currentFilters.project;
+            const priorityMatch = currentFilters.priority === 'all' || task.priority === currentFilters.priority;
+            const taskDate = new Date(task.assignedDate + 'T00:00:00');
+            const startDate = currentFilters.dateStart ? new Date(currentFilters.dateStart + 'T00:00:00') : null;
+            const endDate = currentFilters.dateEnd ? new Date(currentFilters.dateEnd + 'T00:00:00') : null;
+            const dateMatch = (!startDate || taskDate >= startDate) && (!endDate || taskDate <= endDate);
+            return searchMatch && ownerMatch && statusMatch && dateMatch && projectMatch && priorityMatch;
+        });
+    };
 
-            for (const project of sortedProjects) {
-                html += `<div class="bg-gray-50 rounded-lg p-4 sm:p-6"><h3 class="text-lg font-bold text-indigo-700 mb-4 border-b border-gray-200 pb-2">${project}</h3><div class="space-y-4">`;
-                
-                const tasksByDate = tasksByProject[project];
-                // Sort dates chronologically
-                const sortedDates = Object.keys(tasksByDate).sort();
-
-                for (const date of sortedDates) {
-                     html += `<div class="pl-2"><h4 class="font-semibold text-gray-700 mb-2">${new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h4>`;
-                     html += '<ul class="divide-y divide-gray-200 bg-white rounded-md shadow-sm">';
-                     tasksByDate[date].forEach(task => {
-                        const { bg, text, label } = getStatusColors(task);
-                        html += `
-                            <li class="px-4 py-3 flex items-center justify-between hover:bg-gray-50">
-                                <div>
-                                    <p class="text-sm font-medium text-gray-800">${task.description}</p>
-                                    <p class="text-xs text-gray-500 mt-1">Owner: <span class="font-medium">${task.owner}</span> &bull; Due: <span class="font-medium">${task.promiseDate}</span></p>
-                                </div>
-                                <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${bg} ${text}">${label}</span>
-                            </li>`;
-                     });
-                     html += '</ul></div>';
-                }
-                html += `</div></div>`;
-            }
-            html += '</div>';
-            container.innerHTML = html;
-        };
-
-        // --- CORE LOGIC & MODAL FUNCTIONS ---
-        const rerenderAll = () => { populateOwnerDropdowns(); populateProjectFilter(); renderSummaryCards(); renderTasks(); renderTeamMembers(); renderCharts(); renderCalendar(); renderProjectView(); };
-        const attachActionListeners = () => { document.querySelectorAll('.delete-btn').forEach(b => b.onclick = e => deleteTask(e.currentTarget.dataset.id)); document.querySelectorAll('.edit-btn').forEach(b => b.onclick = e => openEditModal(e.currentTarget.dataset.id)); };
-        const deleteTask = (id) => deleteDoc(doc(tasksCollection, id));
-        const addTeamMember = (name, designation) => addDoc(teamCollection, { name, designation });
-        const deleteTeamMember = (id) => deleteDoc(doc(teamCollection, id));
-        const openAddTaskModal = () => { taskForm.reset(); modalTitle.textContent = 'Add New Task'; modalSubmitBtn.textContent = 'Add Task'; document.getElementById('task-id').value = ''; ownerSelect.multiple = true; ownerSelect.classList.add('h-24'); ownerHelperText.classList.remove('hidden'); taskModal.classList.remove('hidden'); };
-        const openEditModal = (id) => { const task = tasks.find(t => t.id === id); if (!task) return; ownerSelect.multiple = false; ownerSelect.classList.remove('h-24'); ownerHelperText.classList.add('hidden'); modalTitle.textContent = 'Edit Task'; modalSubmitBtn.textContent = 'Save Changes'; document.getElementById('task-id').value = task.id; document.getElementById('task-project').value = task.project || ''; document.getElementById('task-description').value = task.description; document.getElementById('task-owner').value = task.owner; document.getElementById('task-priority').value = task.priority || 'Medium'; document.getElementById('promise-date').value = task.promiseDate; document.getElementById('task-status').value = task.status; document.getElementById('task-comments').value = task.comments; taskModal.classList.remove('hidden'); };
-
-        // --- EVENT HANDLERS ---
-        taskForm.addEventListener('submit', async (e) => { e.preventDefault(); const id = e.target['task-id'].value; const project = e.target['task-project'].value.trim(); const description = e.target['task-description'].value.trim(); const priority = e.target['task-priority'].value; const promiseDate = e.target['promise-date'].value; const status = e.target['task-status'].value; const comments = e.target['task-comments'].value.trim(); if (id) { const owner = ownerSelect.value; if (!description || !owner || !promiseDate) return; const taskRef = doc(tasksCollection, id); const taskData = tasks.find(t => t.id === id); const wasDone = taskData.status === 'Done'; await updateDoc(taskRef, { project, description, owner, priority, promiseDate, status, comments, completedDate: status === 'Done' && !wasDone ? new Date().toISOString().split('T')[0] : (status !== 'Done' && wasDone ? null : taskData.completedDate) }); } else { const selectedOwners = Array.from(ownerSelect.selectedOptions).map(opt => opt.value); if (!description || selectedOwners.length === 0 || !promiseDate) return; const assignedDate = new Date().toISOString().split('T')[0]; for (const owner of selectedOwners) { await addDoc(tasksCollection, { project, description, owner, priority, assignedDate, promiseDate, status, comments, completedDate: status === 'Done' ? assignedDate : null }); } } taskModal.classList.add('hidden'); });
-        teamForm.addEventListener('submit', e => { e.preventDefault(); const name = e.target['member-name'].value.trim(); const designation = e.target['member-designation'].value.trim(); if(name && designation) addTeamMember(name, designation); e.target.reset(); });
-        searchInput.addEventListener('input', e => { currentFilters.search = e.target.value; rerenderAll(); });
-        filterOwner.addEventListener('change', e => { currentFilters.owner = e.target.value; rerenderAll(); });
-        filterStatus.addEventListener('change', e => { currentFilters.status = e.target.value; rerenderAll(); });
-        filterProject.addEventListener('change', e => { currentFilters.project = e.target.value; rerenderAll(); });
-        filterPriority.addEventListener('change', e => { currentFilters.priority = e.target.value; rerenderAll(); });
+    const renderSummaryCards = () => { const relevantTasks = getFilteredTasks(); const totalTasks = relevantTasks.length; const pendingTasks = relevantTasks.filter(t => t.status === 'Pending' && !isOverdue(t)).length; const inProgressTasks = relevantTasks.filter(t => t.status === 'In Progress' && !isOverdue(t)).length; const overdueTasks = relevantTasks.filter(isOverdue).length; summaryCardsContainer.innerHTML = `<div class="bg-gray-100 p-4 rounded-lg text-center"><p class="text-2xl font-bold text-gray-800">${totalTasks}</p><p class="text-sm text-gray-500">Total Tasks</p></div><div class="bg-yellow-100 p-4 rounded-lg text-center"><p class="text-2xl font-bold text-yellow-800">${pendingTasks}</p><p class="text-sm text-yellow-600">Pending</p></div><div class="bg-blue-100 p-4 rounded-lg text-center"><p class="text-2xl font-bold text-blue-800">${inProgressTasks}</p><p class="text-sm text-blue-600">In Progress</p></div><div class="bg-red-100 p-4 rounded-lg text-center"><p class="text-2xl font-bold text-red-800">${overdueTasks}</p><p class="text-sm text-red-600">Overdue</p></div>`; };
+    const populateProjectFilter = () => { const projects = [...new Set(tasks.map(task => task.project).filter(p => p))]; filterProject.innerHTML = '<option value="all">Filter by Project (All)</option>'; projects.sort().forEach(project => { filterProject.innerHTML += `<option value="${project}">${project}</option>`; }); };
+    const populateOwnerDropdowns = () => { const currentOwnerFilterValue = filterOwner.value; filterOwner.innerHTML = '<option value="all">Filter by Owner (All)</option>'; ownerSelect.innerHTML = ''; teamMembers.sort((a,b) => a.name.localeCompare(b.name)).forEach(member => { filterOwner.innerHTML += `<option value="${member.name}">${member.name}</option>`; ownerSelect.innerHTML += `<option value="${member.name}">${member.name}</option>`; }); filterOwner.value = currentOwnerFilterValue; };
+    
+    const renderTasks = () => { let filteredTasks = getFilteredTasks(); filteredTasks.sort((a, b) => { let valA=a[currentSort.key],valB=b[currentSort.key];if(currentSort.key==='promiseDate'||currentSort.key==='assignedDate'){valA=new Date(valA);valB=new Date(valB)}if(valA<valB)return currentSort.order==='asc'?-1:1;if(valA>valB)return currentSort.order==='asc'?1:-1;return 0}); taskTableBody.innerHTML = ''; if (filteredTasks.length === 0) { taskTableBody.innerHTML = `<tr><td colspan="8" class="text-center text-gray-500 py-4">No tasks match the current filters.</td></tr>`; return; } filteredTasks.forEach(task => { const { bg, text, label } = getStatusColors(task); const priorityColor = getPriorityColors(task.priority); const daysTaken = calculateDaysTaken(task); const row = document.createElement('tr'); row.className = 'hover:bg-gray-50 transition-colors'; const tooltipAttr = task.comments ? `data-tooltip-text="${task.comments.replace(/"/g, '&quot;')}"` : ''; row.innerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 relative" ${tooltipAttr}>${task.description}<div class="text-xs text-gray-500">${task.project || ''}</div></td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task.owner}</td><td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${priorityColor}">${task.priority || 'Medium'}</span></td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task.assignedDate}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task.promiseDate}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">${daysTaken}</td><td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${bg} ${text}">${label}</span></td><td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2 flex items-center"><button class="edit-btn text-indigo-600 hover:text-indigo-900" data-id="${task.id}">Edit</button><button class="delete-btn text-red-600 hover:text-red-900" data-id="${task.id}"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h--3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg></button></td>`; taskTableBody.appendChild(row); }); attachActionListeners(); updateSortIcons(); };
+    const renderTeamMembers = () => { teamListBody.innerHTML = ''; teamMembers.sort((a,b) => a.name.localeCompare(b.name)).forEach(member => { teamListBody.innerHTML += `<tr><td class="px-4 py-2 text-sm text-gray-800">${member.name}</td><td class="px-4 py-2 text-sm text-gray-500">${member.designation}</td><td class="px-4 py-2"><button class="delete-member-btn text-red-600 hover:text-red-900 text-sm" data-id="${member.id}">Delete</button></td></tr>`; }); document.querySelectorAll('.delete-member-btn').forEach(b => b.onclick = e => deleteTeamMember(e.currentTarget.dataset.id)); };
+    const renderCharts = () => { const filteredTasks = getFilteredTasks(); const totalTasks = filteredTasks.length; const statusCounts = { Pending: 0, 'In Progress': 0, Done: 0, Overdue: 0 }; filteredTasks.forEach(task => { if(isOverdue(task)) statusCounts.Overdue++; else statusCounts[task.status]++; }); if(statusChart) statusChart.destroy(); statusChart = new Chart(document.getElementById('statusChart'), { type: 'pie', data: { labels: Object.keys(statusCounts), datasets: [{ data: Object.values(statusCounts), backgroundColor: ['#FBBF24', '#3B82F6', '#10B981', '#EF4444'] }] }, options: { plugins: { datalabels: { formatter: (value, ctx) => { if (value === 0) return ''; let percentage = totalTasks > 0 ? (value / totalTasks * 100).toFixed(1) + '%' : '0.0%'; return `${value} (${percentage})`; }, color: '#fff', font: { weight: 'bold' } } } } }); const priorityCounts = { Low: 0, Medium: 0, High: 0, Urgent: 0 }; filteredTasks.forEach(task => priorityCounts[task.priority || 'Medium']++); if(priorityChart) priorityChart.destroy(); priorityChart = new Chart(document.getElementById('priorityChart'), { type: 'pie', data: { labels: Object.keys(priorityCounts), datasets: [{ data: Object.values(priorityCounts), backgroundColor: ['#6B7280', '#3B82F6', '#F97316', '#EF4444'] }] }, options: { plugins: { datalabels: { formatter: (value, ctx) => { if (value === 0) return ''; let percentage = totalTasks > 0 ? (value / totalTasks * 100).toFixed(1) + '%' : '0.0%'; return `${value} (${percentage})`; }, color: '#fff', font: { weight: 'bold' } } } } }); const ownerCounts = {}; filteredTasks.forEach(task => { ownerCounts[task.owner] = (ownerCounts[task.owner] || 0) + 1; }); if(ownerChart) ownerChart.destroy(); ownerChart = new Chart(document.getElementById('ownerChart'), { type: 'bar', data: { labels: Object.keys(ownerCounts), datasets: [{ label: 'Tasks', data: Object.values(ownerCounts), backgroundColor: '#3B82F6' }] }, options: { scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false }, datalabels: { anchor: 'end', align: 'top', font: { weight: 'bold' } } } } }); };
+    const renderCalendar = () => { const filteredTasks = getFilteredTasks(); const events = filteredTasks.map(task => ({ id: task.id, title: `${task.owner}: ${task.description}`, start: task.promiseDate, allDay: true, color: getStatusColors(task).calendarColor, extendedProps: { task: task } })); if (calendar) { calendar.removeAllEvents(); calendar.addEventSource(events); } };
+    const renderProjectView = () => {
+        const container = document.getElementById('tab-panel-project-view');
+        let filteredTasks = getFilteredTasks();
         
-        const setupDateInput = (input) => { input.addEventListener('change', (e) => { const dateVal = e.target.value; const label = e.target.nextElementSibling; if (label) label.style.display = dateVal ? 'none' : 'block'; e.target.classList.toggle('text-gray-900', !!dateVal); if (e.target.id === 'filter-date-start') currentFilters.dateStart = dateVal || null; else if (e.target.id === 'filter-date-end') currentFilters.dateEnd = dateVal || null; rerenderAll(); }); };
-        setupDateInput(filterDateStart); setupDateInput(filterDateEnd);
+        if (filteredTasks.length === 0) {
+            container.innerHTML = `<p class="text-center text-gray-500 py-8">No tasks to display based on current filters.</p>`;
+            return;
+        }
 
-        document.querySelectorAll('.sortable').forEach(header => { header.addEventListener('click', () => { const sortKey=header.dataset.sort;if(currentSort.key===sortKey){currentSort.order=currentSort.order==='asc'?'desc':'asc'}else{currentSort.key=sortKey;currentSort.order='asc'}renderTasks()}); });
+        // Group tasks by project, then by assigned date
+        const tasksByProject = filteredTasks.reduce((acc, task) => {
+            const project = task.project || 'Uncategorized';
+            const date = task.assignedDate;
+            if (!acc[project]) acc[project] = {};
+            if (!acc[project][date]) acc[project][date] = [];
+            acc[project][date].push(task);
+            return acc;
+        }, {});
 
-        // Tab Event Listeners
-        const switchTab = (activeTab) => {
-            const tabs = { list: tabList, dashboard: tabDashboard, calendar: tabCalendar, projectView: tabProjectView };
-            const panels = { list: tabPanelList, dashboard: tabPanelDashboard, calendar: tabPanelCalendar, projectView: tabPanelProjectView };
-            Object.keys(tabs).forEach(key => {
-                const isActive = key === activeTab;
-                tabs[key].classList.toggle('active', isActive);
-                panels[key].classList.toggle('hidden', !isActive);
-            });
-            if (activeTab === 'calendar' && calendar) calendar.render(); // Re-render calendar when tab is shown
-        };
-        tabList.addEventListener('click', () => switchTab('list'));
-        tabDashboard.addEventListener('click', () => switchTab('dashboard'));
-        tabCalendar.addEventListener('click', () => switchTab('calendar'));
-        tabProjectView.addEventListener('click', () => switchTab('projectView'));
+        let html = '<div class="space-y-8">';
+        // Sort projects alphabetically
+        const sortedProjects = Object.keys(tasksByProject).sort();
 
-        // Modal listeners
-        openTaskModalBtn.addEventListener('click', openAddTaskModal);
-        closeTaskModalBtn.addEventListener('click', () => taskModal.classList.add('hidden'));
-        taskModal.addEventListener('click', (e) => { if (e.target === taskModal) taskModal.classList.add('hidden'); });
-        manageTeamBtn.addEventListener('click', () => teamModal.classList.remove('hidden'));
-        closeTeamModalBtn.addEventListener('click', () => teamModal.classList.add('hidden'));
-        teamModal.addEventListener('click', (e) => { if (e.target === teamModal) teamModal.classList.add('hidden'); });
+        for (const project of sortedProjects) {
+            html += `<div class="bg-gray-50 rounded-lg p-4 sm:p-6"><h3 class="text-lg font-bold text-indigo-700 mb-4 border-b border-gray-200 pb-2">${project}</h3><div class="space-y-4">`;
+            
+            const tasksByDate = tasksByProject[project];
+            // Sort dates chronologically
+            const sortedDates = Object.keys(tasksByDate).sort();
 
-        // --- INITIALIZE APP & CALENDAR ---
-        const initializeCalendar = () => {
-            calendar = new FullCalendar.Calendar(calendarEl, {
-                initialView: 'dayGridMonth',
-                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,dayGridWeek,listWeek' },
-                events: [],
-                height: 'auto',
-                views: {
-                  dayGridMonth: { dayMaxEvents: true },
-                  dayGridWeek: { dayMaxEvents: false }
-                },
-                viewDidMount: function(info) {
-                    if (info.view.type === 'dayGridWeek') {
-                        calendarEl.classList.add('week-view-active');
-                    } else {
-                        calendarEl.classList.remove('week-view-active');
-                    }
-                },
-                eventClick: function(info) {
-                    const taskId = info.event.extendedProps.task.id;
-                    openEditModal(taskId);
-                },
-                eventDidMount: function(info) {
-                    const task = info.event.extendedProps.task;
-                    if (!task) return;
-                    const promiseDiff = calculatePromiseDifference(task);
-                    tippy(info.el, {
-                        content: `<div class="text-left p-1"><p class="font-bold mb-1">${info.event.title}</p><p class="text-xs"><span class="font-semibold">Assigned:</span> ${task.assignedDate}</p><p class="text-xs"><span class="font-semibold">Promise:</span> ${task.promiseDate}</p><p class="text-xs"><span class="font-semibold">Duration:</span> ${promiseDiff}</p></div>`,
-                        allowHTML: true, theme: 'light',
-                    });
+            for (const date of sortedDates) {
+                 html += `<div class="pl-2"><h4 class="font-semibold text-gray-700 mb-2">${new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h4>`;
+                 html += '<ul class="divide-y divide-gray-200 bg-white rounded-md shadow-sm">';
+                 tasksByDate[date].forEach(task => {
+                    const { bg, text, label } = getStatusColors(task);
+                    html += `
+                        <li class="px-4 py-3 flex items-center justify-between hover:bg-gray-50">
+                            <div>
+                                <p class="text-sm font-medium text-gray-800">${task.description}</p>
+                                <p class="text-xs text-gray-500 mt-1">Owner: <span class="font-medium">${task.owner}</span> &bull; Due: <span class="font-medium">${task.promiseDate}</span></p>
+                            </div>
+                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${bg} ${text}">${label}</span>
+                        </li>`;
+                 });
+                 html += '</ul></div>';
+            }
+            html += `</div></div>`;
+        }
+        html += '</div>';
+        container.innerHTML = html;
+    };
+
+    // --- CORE LOGIC & MODAL FUNCTIONS ---
+    const rerenderAll = () => { populateOwnerDropdowns(); populateProjectFilter(); renderSummaryCards(); renderTasks(); renderTeamMembers(); renderCharts(); renderCalendar(); renderProjectView(); };
+    const attachActionListeners = () => { document.querySelectorAll('.delete-btn').forEach(b => b.onclick = e => deleteTask(e.currentTarget.dataset.id)); document.querySelectorAll('.edit-btn').forEach(b => b.onclick = e => openEditModal(e.currentTarget.dataset.id)); };
+    const deleteTask = (id) => deleteDoc(doc(tasksCollection, id));
+    const addTeamMember = (name, designation) => addDoc(teamCollection, { name, designation });
+    const deleteTeamMember = (id) => deleteDoc(doc(teamCollection, id));
+    
+    // MODIFIED: This function now sets a default promise date.
+    const openAddTaskModal = () => { 
+        taskForm.reset(); 
+        
+        // --- START: Added Code for Request 2 ---
+        const promiseDateInput = document.getElementById('promise-date');
+        const today = new Date();
+        // Set date to two days from now
+        today.setDate(today.getDate() + 2);
+        promiseDateInput.value = formatDate(today); // Use helper to format as YYYY-MM-DD
+        // --- END: Added Code for Request 2 ---
+
+        modalTitle.textContent = 'Add New Task'; 
+        modalSubmitBtn.textContent = 'Add Task'; 
+        document.getElementById('task-id').value = ''; 
+        ownerSelect.multiple = true; 
+        ownerSelect.classList.add('h-24'); 
+        ownerHelperText.classList.remove('hidden'); 
+        taskModal.classList.remove('hidden'); 
+    };
+
+    const openEditModal = (id) => { const task = tasks.find(t => t.id === id); if (!task) return; ownerSelect.multiple = false; ownerSelect.classList.remove('h-24'); ownerHelperText.classList.add('hidden'); modalTitle.textContent = 'Edit Task'; modalSubmitBtn.textContent = 'Save Changes'; document.getElementById('task-id').value = task.id; document.getElementById('task-project').value = task.project || ''; document.getElementById('task-description').value = task.description; document.getElementById('task-owner').value = task.owner; document.getElementById('task-priority').value = task.priority || 'Medium'; document.getElementById('promise-date').value = task.promiseDate; document.getElementById('task-status').value = task.status; document.getElementById('task-comments').value = task.comments; taskModal.classList.remove('hidden'); };
+
+    // --- EVENT HANDLERS ---
+    taskForm.addEventListener('submit', async (e) => { e.preventDefault(); const id = e.target['task-id'].value; const project = e.target['task-project'].value.trim(); const description = e.target['task-description'].value.trim(); const priority = e.target['task-priority'].value; const promiseDate = e.target['promise-date'].value; const status = e.target['task-status'].value; const comments = e.target['task-comments'].value.trim(); if (id) { const owner = ownerSelect.value; if (!description || !owner || !promiseDate) return; const taskRef = doc(tasksCollection, id); const taskData = tasks.find(t => t.id === id); const wasDone = taskData.status === 'Done'; await updateDoc(taskRef, { project, description, owner, priority, promiseDate, status, comments, completedDate: status === 'Done' && !wasDone ? new Date().toISOString().split('T')[0] : (status !== 'Done' && wasDone ? null : taskData.completedDate) }); } else { const selectedOwners = Array.from(ownerSelect.selectedOptions).map(opt => opt.value); if (!description || selectedOwners.length === 0 || !promiseDate) return; const assignedDate = new Date().toISOString().split('T')[0]; for (const owner of selectedOwners) { await addDoc(tasksCollection, { project, description, owner, priority, assignedDate, promiseDate, status, comments, completedDate: status === 'Done' ? assignedDate : null }); } } taskModal.classList.add('hidden'); });
+    teamForm.addEventListener('submit', e => { e.preventDefault(); const name = e.target['member-name'].value.trim(); const designation = e.target['member-designation'].value.trim(); if(name && designation) addTeamMember(name, designation); e.target.reset(); });
+    searchInput.addEventListener('input', e => { currentFilters.search = e.target.value; rerenderAll(); });
+    filterOwner.addEventListener('change', e => { currentFilters.owner = e.target.value; rerenderAll(); });
+    filterStatus.addEventListener('change', e => { currentFilters.status = e.target.value; rerenderAll(); });
+    filterProject.addEventListener('change', e => { currentFilters.project = e.target.value; rerenderAll(); });
+    filterPriority.addEventListener('change', e => { currentFilters.priority = e.target.value; rerenderAll(); });
+    
+    const setupDateInput = (input) => { input.addEventListener('change', (e) => { const dateVal = e.target.value; const label = e.target.nextElementSibling; if (label) label.style.display = dateVal ? 'none' : 'block'; e.target.classList.toggle('text-gray-900', !!dateVal); if (e.target.id === 'filter-date-start') currentFilters.dateStart = dateVal || null; else if (e.target.id === 'filter-date-end') currentFilters.dateEnd = dateVal || null; rerenderAll(); }); };
+    setupDateInput(filterDateStart); setupDateInput(filterDateEnd);
+
+    document.querySelectorAll('.sortable').forEach(header => { header.addEventListener('click', () => { const sortKey=header.dataset.sort;if(currentSort.key===sortKey){currentSort.order=currentSort.order==='asc'?'desc':'asc'}else{currentSort.key=sortKey;currentSort.order='asc'}renderTasks()}); });
+
+    // Tab Event Listeners
+    const switchTab = (activeTab) => {
+        const tabs = { list: tabList, dashboard: tabDashboard, calendar: tabCalendar, projectView: tabProjectView };
+        const panels = { list: tabPanelList, dashboard: tabPanelDashboard, calendar: tabPanelCalendar, projectView: tabPanelProjectView };
+        Object.keys(tabs).forEach(key => {
+            const isActive = key === activeTab;
+            tabs[key].classList.toggle('active', isActive);
+            panels[key].classList.toggle('hidden', !isActive);
+        });
+        if (activeTab === 'calendar' && calendar) calendar.render(); // Re-render calendar when tab is shown
+    };
+    tabList.addEventListener('click', () => switchTab('list'));
+    tabDashboard.addEventListener('click', () => switchTab('dashboard'));
+    tabCalendar.addEventListener('click', () => switchTab('calendar'));
+    tabProjectView.addEventListener('click', () => switchTab('projectView'));
+
+    // Modal listeners
+    openTaskModalBtn.addEventListener('click', openAddTaskModal);
+    closeTaskModalBtn.addEventListener('click', () => taskModal.classList.add('hidden'));
+    taskModal.addEventListener('click', (e) => { if (e.target === taskModal) taskModal.classList.add('hidden'); });
+    manageTeamBtn.addEventListener('click', () => teamModal.classList.remove('hidden'));
+    closeTeamModalBtn.addEventListener('click', () => teamModal.classList.add('hidden'));
+    teamModal.addEventListener('click', (e) => { if (e.target === teamModal) teamModal.classList.add('hidden'); });
+    
+    // --- START: Added Code for Request 1 ---
+    // This function sets the default date filters to the current month on page load.
+    const setDefaultDateFilters = () => {
+        const now = new Date();
+        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+        const startDate = formatDate(firstDayOfMonth);
+        const endDate = formatDate(lastDayOfMonth);
+
+        // Set the input values
+        filterDateStart.value = startDate;
+        filterDateEnd.value = endDate;
+
+        // Update the filter state
+        currentFilters.dateStart = startDate;
+        currentFilters.dateEnd = endDate;
+
+        // Manually trigger the UI changes to hide the labels and set text color
+        filterDateStart.nextElementSibling.style.display = 'none';
+        filterDateStart.classList.add('text-gray-900');
+        filterDateEnd.nextElementSibling.style.display = 'none';
+        filterDateEnd.classList.add('text-gray-900');
+    };
+    // --- END: Added Code for Request 1 ---
+
+    // --- INITIALIZE APP & CALENDAR ---
+    const initializeCalendar = () => {
+        calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,dayGridWeek,listWeek' },
+            events: [],
+            height: 'auto',
+            views: {
+              dayGridMonth: { dayMaxEvents: true },
+              dayGridWeek: { dayMaxEvents: false }
+            },
+            viewDidMount: function(info) {
+                if (info.view.type === 'dayGridWeek') {
+                    calendarEl.classList.add('week-view-active');
+                } else {
+                    calendarEl.classList.remove('week-view-active');
                 }
-            });
-            calendar.render();
-        };
+            },
+            eventClick: function(info) {
+                const taskId = info.event.extendedProps.task.id;
+                openEditModal(taskId);
+            },
+            eventDidMount: function(info) {
+                const task = info.event.extendedProps.task;
+                if (!task) return;
+                const promiseDiff = calculatePromiseDifference(task);
+                tippy(info.el, {
+                    content: `<div class="text-left p-1"><p class="font-bold mb-1">${info.event.title}</p><p class="text-xs"><span class="font-semibold">Assigned:</span> ${task.assignedDate}</p><p class="text-xs"><span class="font-semibold">Promise:</span> ${task.promiseDate}</p><p class="text-xs"><span class="font-semibold">Duration:</span> ${promiseDiff}</p></div>`,
+                    allowHTML: true, theme: 'light',
+                });
+            }
+        });
+        calendar.render();
+    };
 
-        initializeFirebase();
-        initializeCalendar();
-        switchTab('list'); // Set initial tab
+    setDefaultDateFilters(); // Call the new function on load
+    initializeFirebase();
+    initializeCalendar();
+    switchTab('list'); // Set initial tab
 
-    </script>
+</script>
 </body>
 </html>
 
