@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Action Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
+    <script src="https://unpkg.com/@popperjs/core@2"></script>
+    <script src="https://unpkg.com/tippy.js@6"></script>
+    <link rel="stylesheet" href="src/css/style.css">
+</head>
+
+<body class="bg-gray-100">
+
+    <nav class="bg-slate-800 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex-shrink-0">
+                    <h1 class="text-2xl font-bold text-white">Team Action Tracker</h1>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div class="bg-white rounded-lg shadow">
+            <div class="p-6">
+                <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800">Task Dashboard</h2>
+                    <div class="flex gap-2">
+                        <button id="manage-project-btn"
+                            class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Manage Projects
+                        </button>
+                        <button id="manage-team-btn"
+                            class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Manage Team
+                        </button>
+                        <button id="open-add-task-modal-btn"
+                            class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Add New Task
+                        </button>
+                    </div>
+                </div>
+                <div id="summary-cards" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4"></div>
+                <div class="grid grid-cols-1 md:grid-cols-8 gap-4 items-center">
+                    <input type="text" id="search-input" placeholder="Search tasks..."
+                        class="md:col-span-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border">
+                    <select id="filter-project"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border bg-white">
+                        <option value="all">Filter by Project (All)</option>
+                    </select>
+                    <select id="filter-owner"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border bg-white">
+                        <option value="all">Filter by Owner (All)</option>
+                    </select>
+                    <select id="filter-priority"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border bg-white">
+                        <option value="all">Filter by Priority (All)</option>
+                        <option>Low</option>
+                        <option>Medium</option>
+                        <option>High</option>
+                        <option>Urgent</option>
+                    </select>
+                    <select id="filter-status"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border bg-white">
+                        <option value="all">Filter by Status (All)</option>
+                        <option value="Pending">Pending</option>
+                        <option>In Progress</option>
+                        <option>Done</option>
+                        <option>Overdue</option>
+                    </select>
+                    <div class="relative">
+                        <input type="date" id="filter-date-start"
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border text-gray-500">
+                        <label for="filter-date-start"
+                            class="absolute top-2 left-2 text-gray-400 text-sm pointer-events-none">Start Date</label>
+                    </div>
+                    <div class="relative">
+                        <input type="date" id="filter-date-end"
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border text-gray-500">
+                        <label for="filter-date-end"
+                            class="absolute top-2 left-2 text-gray-400 text-sm pointer-events-none">End Date</label>
+                    </div>
+                </div>
+            </div>
+            <div class="border-b border-gray-200">
+                <nav class="-mb-px flex space-x-8 px-6" aria-label="Tabs">
+                    <button id="tab-list"
+                        class="tab-btn active whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Task
+                        List</button>
+                    <button id="tab-dashboard"
+                        class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">Visual
+                        Dashboard</button>
+                    <button id="tab-calendar"
+                        class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">Calendar</button>
+                    <button id="tab-project-view"
+                        class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">Project
+                        View</button>
+                </nav>
+            </div>
+            <div id="tab-panel-list" class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable"
+                                data-sort="description">Task <span class="sort-icon"></span></th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable"
+                                data-sort="owner">Owner <span class="sort-icon"></span></th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable"
+                                data-sort="priority">Priority <span class="sort-icon"></span></th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable"
+                                data-sort="assignedDate">Assigned Date <span class="sort-icon"></span></th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable"
+                                data-sort="promiseDate">Promise Date <span class="sort-icon"></span></th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Days Taken</th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Status</th>
+                            <th scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="task-table-body" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+            <div id="tab-panel-dashboard" class="p-6 hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="font-semibold text-center mb-2">Tasks by Status</h3><canvas
+                            id="statusChart"></canvas>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="font-semibold text-center mb-2">Tasks by Priority</h3><canvas
+                            id="priorityChart"></canvas>
+                    </div>
+                    <div class="lg:col-span-2 bg-gray-50 p-4 rounded-lg">
+                        <h3 class="font-semibold text-center mb-2">Tasks per Owner</h3><canvas id="ownerChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div id="tab-panel-calendar" class="p-6 hidden">
+                <div id="calendar"></div>
+            </div>
+            <div id="tab-panel-project-view" class="p-6 hidden">
+            </div>
+        </div>
+    </main>
+
+    <div id="task-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+        <div class="relative top-10 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="modal-title" class="text-xl font-semibold text-gray-800">Add New Task</h3><button
+                    id="close-task-modal-btn" class="text-gray-400 hover:text-gray-600"><svg class="h-6 w-6" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                    </svg></button>
+            </div>
+            <form id="task-form" class="space-y-4"><input type="hidden" id="task-id" name="task-id">
+                <div><label for="task-project" class="block text-sm font-medium text-gray-700">Project /
+                        Category</label><select id="task-project" name="task-project" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border bg-white"></select>
+                </div>
+                <div><label for="task-description" class="block text-sm font-medium text-gray-700">Task
+                        Description</label><input type="text" id="task-description" name="task-description" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label for="task-owner" class="block text-sm font-medium text-gray-700">Owner</label>
+                        <p id="owner-helper-text" class="text-xs text-gray-500 hidden">Hold Ctrl/Cmd to select multiple.
+                        </p><select id="task-owner" name="task-owner" required
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border bg-white"></select>
+                    </div>
+                    <div><label for="task-priority"
+                            class="block text-sm font-medium text-gray-700">Priority</label><select id="task-priority"
+                            name="task-priority"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border bg-white">
+                            <option>Low</option>
+                            <option selected>Medium</option>
+                            <option>High</option>
+                            <option>Urgent</option>
+                        </select></div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label for="promise-date" class="block text-sm font-medium text-gray-700">Promise
+                            Date</label><input type="date" id="promise-date" name="promise-date" required
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border text-gray-500">
+                    </div>
+                    <div><label for="task-status" class="block text-sm font-medium text-gray-700">Status</label><select
+                            id="task-status" name="task-status"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border bg-white">
+                            <option>Pending</option>
+                            <option>In Progress</option>
+                            <option>Done</option>
+                        </select></div>
+                </div>
+                <div><label for="task-comments"
+                        class="block text-sm font-medium text-gray-700">Comments</label><textarea id="task-comments"
+                        name="task-comments" rows="3"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"></textarea>
+                </div><button id="modal-submit-btn" type="submit"
+                    class="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">Add
+                    Task</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="team-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+        <div class="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold text-gray-800">Manage Team</h3><button id="close-team-modal-btn"
+                    class="text-gray-400 hover:text-gray-600"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                    </svg></button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="md:col-span-1">
+                    <h4 class="font-semibold mb-2">Add New Member</h4>
+                    <form id="team-form" class="space-y-4">
+                        <div><label for="member-name" class="block text-sm font-medium text-gray-700">Name</label><input
+                                type="text" id="member-name" required
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"></div>
+                        <div><label for="member-designation"
+                                class="block text-sm font-medium text-gray-700">Designation</label><input type="text"
+                                id="member-designation" required
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"></div><button
+                            type="submit"
+                            class="w-full py-2 px-4 rounded-md text-white bg-indigo-600 hover:bg-indigo-700">Add
+                            Member</button>
+                    </form>
+                </div>
+                <div class="md:col-span-2">
+                    <h4 class="font-semibold mb-2">Current Team</h4>
+                    <div class="overflow-y-auto max-h-64 border rounded-md">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name
+                                    </th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                        Designation</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="team-list-body" class="bg-white divide-y divide-gray-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="project-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+        <div class="relative top-10 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold text-gray-800">Manage Projects</h3>
+                <button id="close-project-modal-btn" class="text-gray-400 hover:text-gray-600"><svg class="h-6 w-6"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                    </svg></button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="md:col-span-1">
+                    <h4 class="font-semibold mb-2">Add New Project</h4>
+                    <form id="project-form" class="space-y-4">
+                        <div><label for="project-name" class="block text-sm font-medium text-gray-700">Project
+                                Name</label><input type="text" id="project-name" required
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"></div>
+                        <button type="submit"
+                            class="w-full py-2 px-4 rounded-md text-white bg-indigo-600 hover:bg-indigo-700">Add
+                            Project</button>
+                    </form>
+                </div>
+                <div class="md:col-span-1">
+                    <h4 class="font-semibold mb-2">Current Projects</h4>
+                    <div class="overflow-y-auto max-h-64 border rounded-md">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name
+                                    </th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="project-list-body" class="bg-white divide-y divide-gray-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modules -->
+    <script type="module" src="src/js/app.js"></script>
+</body>
+
+</html>
